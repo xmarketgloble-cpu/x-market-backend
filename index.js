@@ -23,20 +23,24 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'crypto_x_secret_2026';
 
-// --- 🛡️ Professional Middlewares & CORS Fix ---
+// --- 🛡️ Professional Middlewares & CORS Configuration ---
 
-app.use(cors({
+// CORS Options ကို သီးသန့်ထုတ်ထားခြင်းက ပိုပြီး ပညာရှင်ဆန်ပါတယ်
+const corsOptions = {
     origin: [
         "https://monumental-frangipane-d8ba7a.netlify.app", 
         "http://localhost:5173"
     ],
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: true
-}));
+    credentials: true,
+    optionsSuccessStatus: 200
+};
 
-// Pre-flight requests အားလုံးကို ခွင့်ပြုရန်
-app.options('*', cors()); 
+app.use(cors(corsOptions));
+
+// 🚀 CRITICAL FIX: PathError ဖြစ်စေတဲ့ wildcard issue ကို ဖြေရှင်းထားပါတယ်
+app.options('*', cors(corsOptions)); 
 
 app.use(express.json({ limit: '10mb' })); 
 app.use(helmet({ crossOriginResourcePolicy: false }));
