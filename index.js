@@ -106,16 +106,15 @@ const authMiddleware = (req, res, next) => {
 const otpStore = new Map(); 
 
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
   host: 'smtp.gmail.com',
   port: 465,
-  secure: true,
-  // 🚀 Force IPv4 to resolve 'ENETUNREACH' networking issues on Railway
-  family: 4, 
+  secure: true, // Port 465 အတွက် true ဖြစ်ရပါမယ်
   auth: {
-    user: process.env.EMAIL_USER, 
-    pass: process.env.EMAIL_PASS  
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
   },
+  // 🔥 ဒီအပိုင်းက Network Error ကို ဖြေရှင်းပေးမှာပါ
+  family: 4, 
   tls: {
     rejectUnauthorized: false
   }
