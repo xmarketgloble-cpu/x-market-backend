@@ -10,9 +10,9 @@ const path = require('path');
 const fs = require('fs');
 
 // 🔥 Professional Packages 
-const helmet = require('helmet'); // HTTP Headers လုံခြုံရေး
-const morgan = require('morgan'); // API logging
-const rateLimit = require('express-rate-limit'); // DDOS Protection
+const helmet = require('helmet'); 
+const morgan = require('morgan'); 
+const rateLimit = require('express-rate-limit'); 
 
 dotenv.config();
 
@@ -23,7 +23,7 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'crypto_x_secret_2026';
 
-// --- 🛡️ Professional Middlewares & CORS Setup ---
+// --- 🛡️ Professional Middlewares & CORS Final Fix ---
 
 const corsOptions = {
     origin: [
@@ -36,11 +36,10 @@ const corsOptions = {
     optionsSuccessStatus: 200
 };
 
+// 🎯 မင်းပြောသလိုပဲ ဒါတစ်ခုတည်းနဲ့ အကုန်လုံလောက်ပါတယ်
 app.use(cors(corsOptions));
 
-// 🚀 CRITICAL FIX: Path-to-RegExp error မတက်အောင် wildcard ကို စနစ်တကျ ပြောင်းလဲထားပါတယ်
-// Node.js v22+ မှာ app.options('*') ထက် app.use(cors()) က ပိုစိတ်ချရပါတယ်
-app.options('*', cors(corsOptions)); 
+// ❌ Error တက်စေတဲ့ app.options('*', ...) နဲ့ app.options('/:any*', ...) တွေကို လုံးဝ ဖြုတ်ပစ်လိုက်ပါပြီ။
 
 app.use(express.json({ limit: '10mb' })); 
 app.use(helmet({ crossOriginResourcePolicy: false }));
@@ -116,27 +115,15 @@ const authMiddleware = (req, res, next) => {
 
 // --- 📧 Email OTP System Setup ---
 
-// 🚀 OTP သိမ်းဆည်းရန် Store ကို define လုပ်လိုက်ပါပြီ
 const otpStore = new Map(); 
 
 const transporter = nodemailer.createTransport({
-  service: 'hotmail', // Outlook/Hotmail အတွက်
+  service: 'hotmail', 
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS 
   }
 });
-
-// Server တက်လာပြီးမှ Email စနစ်ကို စစ်ဆေးခိုင်းခြင်း
-setTimeout(() => {
-    transporter.verify((error, success) => {
-        if (error) {
-            console.log("❌ Email Verification Error:", error.message);
-        } else {
-            console.log("📧 Email System is ready (Outlook IPv4 Verified)");
-        }
-    });
-}, 5000);
 
 // --- AUTH ROUTES ---
 
@@ -422,12 +409,22 @@ app.get('/api/crypto-prices', async (req, res, next) => {
 app.use((err, req, res, next) => {
     console.error('🔥 System Error:', err.stack);
     res.status(500).json({ 
-        message: 'Internal Server Error',
-        error: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
+        message: 'Internal Server Error'
     });
 });
 
 // --- 🚀 Server Start ---
 app.listen(PORT, () => {
     console.log(`🚀 Professional Server running on port ${PORT}`);
+    
+    // Server တက်လာပြီးမှ Email စနစ်ကို စစ်ဆေးခိုင်းခြင်း
+    setTimeout(() => {
+        transporter.verify((error, success) => {
+            if (error) {
+                console.log("❌ Email Verification Error:", error.message);
+            } else {
+                console.log("📧 Email System is ready to send codes (IPv4 Verified)");
+            }
+        });
+    }, 3000);
 });
