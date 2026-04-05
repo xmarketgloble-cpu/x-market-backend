@@ -23,9 +23,8 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'crypto_x_secret_2026';
 
-// --- 🛡️ Professional Middlewares & CORS Configuration ---
+// --- 🛡️ Professional Middlewares & CORS Fix ---
 
-// CORS Options ကို သီးသန့်ထုတ်ထားခြင်းက ပိုပြီး ပညာရှင်ဆန်ပါတယ်
 const corsOptions = {
     origin: [
         "https://monumental-frangipane-d8ba7a.netlify.app", 
@@ -39,8 +38,8 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-// 🚀 CRITICAL FIX: PathError ဖြစ်စေတဲ့ wildcard issue ကို ဖြေရှင်းထားပါတယ်
-app.options('*', cors(corsOptions)); 
+// 🚀 CRITICAL FIX: PathError မတက်အောင် wildcard ကို နာမည်ပေးထားပါတယ်
+app.options('/:any*', cors(corsOptions)); 
 
 app.use(express.json({ limit: '10mb' })); 
 app.use(helmet({ crossOriginResourcePolicy: false }));
@@ -114,18 +113,29 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
-// --- 📧 Email OTP System (Outlook App Password Setup) ---
+// --- 📧 Email OTP System Setup ---
 
 // 🚀 CRITICAL FIX: otpStore ကို define လုပ်လိုက်ပါပြီ
 const otpStore = new Map(); 
 
 const transporter = nodemailer.createTransport({
-  service: 'hotmail', // Outlook/Hotmail အတွက် hotmail ကိုသုံးထားပါတယ်
+  service: 'hotmail', // Outlook/Hotmail အတွက်
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS 
   }
 });
+
+// Server တက်လာပြီးမှ Email စနစ်ကို စစ်ဆေးခိုင်းခြင်း
+setTimeout(() => {
+    transporter.verify((error, success) => {
+        if (error) {
+            console.log("❌ Email Verification Error:", error.message);
+        } else {
+            console.log("📧 Email System is ready to send codes (IPv4 Verified)");
+        }
+    });
+}, 5000);
 
 // --- AUTH ROUTES ---
 
@@ -138,8 +148,6 @@ app.post('/api/send-otp', async (req, res, next) => {
     if (existingUser) return res.status(400).json({ message: 'Account Already exists' });
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    
-    // OTP သိမ်းဆည်းရန်
     otpStore.set(email, otp); 
 
     const mailOptions = {
@@ -168,18 +176,13 @@ app.post('/api/send-otp', async (req, res, next) => {
 app.post('/api/register', async (req, res, next) => {
   try {
     const { email, password, otp } = req.body;
-    
-    // OTP စစ်ဆေးခြင်း
     const storedOtp = otpStore.get(email);
     if (!storedOtp || storedOtp !== otp) return res.status(400).json({ message: 'Wrong Code' });
 
     const hashedPassword = await bcrypt.hash(password, 12); 
     const newUser = new User({ email, password: hashedPassword });
     await newUser.save();
-    
-    // အောင်မြင်ရင် OTP ကို ဖျက်ပစ်ပါ
     otpStore.delete(email); 
-    
     res.status(201).json({ message: 'Create Account Successful' });
   } catch (err) { next(err); }
 });
@@ -426,16 +429,4 @@ app.use((err, req, res, next) => {
 // --- 🚀 Server Start ---
 app.listen(PORT, () => {
     console.log(`🚀 Professional Server running on port ${PORT}`);
-    
-    // Server တက်လာပြီးမှ Email စနစ်ကို စစ်ဆေးခိုင်းခြင်း
-    setTimeout(() => {
-        transporter.verify((error, success) => {
-            if (error) {
-                console.log("❌ Email Verification Error:");
-                console.error(error);
-            } else {
-                console.log("📧 Email System is ready to send codes (IPv4 Verified)");
-            }
-        });
-    }, 5000);
 });
