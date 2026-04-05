@@ -9,6 +9,11 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
+// 🔥 Professional Packages 
+const helmet = require('helmet'); // လုံခြုံရေးအတွက် HTTP Headers တွေကို ကာကွယ်ပေးသည်
+const morgan = require('morgan'); // API ခေါ်ဆိုမှုတိုင်းကို Terminal တွင် စနစ်တကျ မှတ်တမ်းတင်ပေးသည်
+const rateLimit = require('express-rate-limit'); // DDOS နဲ့ Hacker တွေရန်မှ ကာကွယ်ပေးသည်
+
 dotenv.config();
 
 const User = require('./models/User'); 
@@ -18,8 +23,24 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'crypto_x_secret_2026';
 
+// --- 🛡️ Professional Middlewares ---
+// Frontend နဲ့ ချိတ်ဆက်ရန်
 app.use(cors());
-app.use(express.json());
+// Request တွေကို JSON အဖြစ်ဖတ်ရန်
+app.use(express.json({ limit: '10mb' })); 
+// လုံခြုံရေး Header များထည့်ရန် (ပုံတွေ Error မတက်အောင် crossOriginResourcePolicy ကို false ပေးထားသည်)
+app.use(helmet({ crossOriginResourcePolicy: false }));
+// API ခေါ်ဆိုမှုများကို မှတ်တမ်းတင်ရန် (ဥပမာ - GET /api/user/me 200)
+app.use(morgan('dev'));
+
+// 🚦 Rate Limiter: ၁၅ မိနစ်အတွင်း တစ်ယောက်ကို Request အကြိမ် ၁၀၀ သာ ခွင့်ပြုမည် (Bot ရန်မှ ကာကွယ်ရန်)
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, 
+    max: 100, 
+    message: { message: 'Too many requests from this IP, please try again after 15 minutes' }
+});
+app.use('/api/login', apiLimiter); 
+app.use('/api/register', apiLimiter);
 
 // 📸 ပုံများကို Frontend မှ လှမ်းကြည့်နိုင်ရန် Static Folder သတ်မှတ်ခြင်း
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -35,7 +56,7 @@ const storage = multer.diskStorage({
         cb(null, 'uploads/');
     },
     filename: (req, file, cb) => {
-        cb(null, Date.now() + '-' + file.originalname);
+        cb(null, Date.now() + '-' + Math.round(Math.random() * 1E9) + path.extname(file.originalname));
     }
 });
 
@@ -43,34 +64,46 @@ const upload = multer({
     storage: storage,
     limits: { fileSize: 5 * 1024 * 1024 }, 
     fileFilter: (req, file, cb) => {
-        const filetypes = /jpeg|jpg|png/;
+        const filetypes = /jpeg|jpg|png|webp/;
         const mimetype = filetypes.test(file.mimetype);
-        if (mimetype) return cb(null, true);
-        cb(new Error('Error: Images Only (JPEG/JPG/PNG)!'));
+        const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+        
+        if (mimetype && extname) return cb(null, true);
+        cb(new Error('Error: Images Only (JPEG/JPG/PNG/WEBP)!'));
     }
 });
 
 
-// --- MongoDB Connection ---
-mongoose.connect('mongodb://127.0.0.1:27017/crypto_exchange')
-  .then(() => console.log('✅ MongoDB Connected'))
-  .catch(err => console.error('❌ MongoDB Error:', err));
+// --- 🗄️ MongoDB Connection (Professional Dynamic URI) ---
+// Railway ပေါ်ရောက်ရင် process.env.MONGO_URI ကိုယူမည်၊ Local မှာဆိုရင် 127.0.0.1 ကိုယူမည်
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/crypto_exchange';
 
-// --- Auth Middleware ---
+mongoose.connect(MONGO_URI)
+  .then(() => console.log('✅ MongoDB Connected Successfully'))
+  .catch(err => {
+      console.error('❌ MongoDB Connection Error:', err.message);
+      process.exit(1); // Database မချိတ်မိရင် Server ကို ရပ်ပစ်မည်
+  });
+
+// --- 🔐 Auth Middleware ---
 const authMiddleware = (req, res, next) => {
-  const token = req.header('Authorization')?.split(' ')[1];
-  if (!token) return res.status(401).json({ message: 'No token, authorization denied' });
+  const authHeader = req.header('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ message: 'No token, authorization denied' });
+  }
+
+  const token = authHeader.split(' ')[1];
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.userId = decoded.id;
     next();
   } catch (err) {
-    res.status(401).json({ message: 'Token is not valid' });
+    res.status(401).json({ message: 'Token is not valid or has expired' });
   }
 };
 
-// --- Email OTP System ---
+// --- 📧 Email OTP System ---
 const otpStore = new Map(); 
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
@@ -84,12 +117,12 @@ const transporter = nodemailer.createTransport({
 
 // --- AUTH ROUTES ---
 
-app.post('/api/send-otp', async (req, res) => {
+app.post('/api/send-otp', async (req, res, next) => {
   try {
     const { email } = req.body;
     if (!email) return res.status(400).json({ message: 'Need Email' });
     const existingUser = await User.findOne({ email });
-    if (existingUser) return res.status(400).json({ message: 'Account Already have' });
+    if (existingUser) return res.status(400).json({ message: 'Account Already exists' });
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     otpStore.set(email, otp); 
@@ -104,35 +137,36 @@ app.post('/api/send-otp', async (req, res) => {
           <div style="text-align: center; margin: 20px 0;">
             <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; background: #1E2329; padding: 15px 25px; border-radius: 8px; color: #ffffff;">${otp}</span>
           </div>
+          <p style="font-size: 12px; color: #666; text-align: center;">This code will expire shortly. Do not share it with anyone.</p>
         </div>`
     };
     await transporter.sendMail(mailOptions);
     res.json({ message: 'Verification code sent!' });
-  } catch (error) { res.status(500).json({ message: `Error: ${error.message}` }); }
+  } catch (error) { next(error); } // Professional Error Handling သို့ လွှဲပြောင်းပေးသည်
 });
 
-app.post('/api/register', async (req, res) => {
+app.post('/api/register', async (req, res, next) => {
   try {
     const { email, password, otp } = req.body;
     const storedOtp = otpStore.get(email);
     if (!storedOtp || storedOtp !== otp) return res.status(400).json({ message: 'Wrong Code' });
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, 12); // ဆား (Salt) 12 ထိတိုးထားသည် ပိုလုံခြုံအောင်
     const newUser = new User({ email, password: hashedPassword });
     await newUser.save();
     otpStore.delete(email); 
     res.status(201).json({ message: 'Create Account Successful' });
-  } catch (err) { res.status(500).json({ message: 'Server Error' }); }
+  } catch (err) { next(err); }
 });
 
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', async (req, res, next) => {
   try {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
-    if (!user) return res.status(400).json({ message: 'User not found' });
+    if (!user) return res.status(400).json({ message: 'Invalid credentials' }); // လုံခြုံရေးအရ User not found လို့ မပြောပါ
 
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json({ message: 'Wrong Password' });
+    if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
 
     const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '1d' });
     res.json({ 
@@ -147,10 +181,10 @@ app.post('/api/login', async (req, res) => {
         kycDetails: user.kycDetails 
       } 
     });
-  } catch (err) { res.status(500).json({ message: 'Login Error' }); }
+  } catch (err) { next(err); }
 });
 
-app.get('/api/user/me', authMiddleware, async (req, res) => {
+app.get('/api/user/me', authMiddleware, async (req, res, next) => {
     try {
         const user = await User.findById(req.userId).select('-password'); 
         if (!user) return res.status(404).json({ message: 'User not found' });
@@ -164,29 +198,27 @@ app.get('/api/user/me', authMiddleware, async (req, res) => {
             holdings: user.holdings,
             kycDetails: user.kycDetails 
         });
-    } catch (err) {
-        res.status(500).json({ message: 'Server Error Fetching User Data' });
-    }
+    } catch (err) { next(err); }
 });
 
 
 // --- 👮 KYC & PROFILE ROUTES ---
 
-app.post('/api/user/upload-profile', authMiddleware, upload.single('profilePic'), async (req, res) => {
+app.post('/api/user/upload-profile', authMiddleware, upload.single('profilePic'), async (req, res, next) => {
     try {
         if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
         const user = await User.findById(req.userId);
         user.profilePic = `/uploads/${req.file.filename}`;
         await user.save();
         res.json({ message: 'Profile photo updated', profilePic: user.profilePic });
-    } catch (err) { res.status(500).json({ message: 'Upload Failed' }); }
+    } catch (err) { next(err); }
 });
 
 app.post('/api/user/submit-kyc', authMiddleware, upload.fields([
     { name: 'idFront', maxCount: 1 },
     { name: 'idBack', maxCount: 1 },
     { name: 'selfie', maxCount: 1 } 
-]), async (req, res) => {
+]), async (req, res, next) => {
     try {
         const { fullName, idNumber, dob, phoneNumber, gender, address } = req.body; 
         
@@ -198,7 +230,7 @@ app.post('/api/user/submit-kyc', authMiddleware, upload.fields([
         
         user.kycDetails.fullName = fullName;
         user.kycDetails.idNumber = idNumber;
-        user.kycDetails.dob = dob;                 
+        user.kycDetails.dob = dob;                
         user.kycDetails.phoneNumber = phoneNumber; 
         user.kycDetails.gender = gender;           
         user.kycDetails.address = address;         
@@ -210,27 +242,23 @@ app.post('/api/user/submit-kyc', authMiddleware, upload.fields([
 
         await user.save();
         res.json({ message: 'Verification details submitted for review!', status: 'Pending' });
-    } catch (err) {
-        res.status(500).json({ message: 'Submission Error' });
-    }
+    } catch (err) { next(err); }
 });
 
 
 // --- 👑 ADMIN CONTROL ROUTES ---
 
-app.get('/api/admin/pending-users', authMiddleware, async (req, res) => {
+app.get('/api/admin/pending-users', authMiddleware, async (req, res, next) => {
     try {
         const adminAccount = await User.findById(req.userId);
         if (adminAccount.role !== 'admin') return res.status(403).json({ message: 'Access Denied: Admin only' });
 
         const pendingUsers = await User.find({ isVerified: 'Pending' }).select('-password');
         res.json(pendingUsers);
-    } catch (err) {
-        res.status(500).json({ message: 'Server Error while fetching pending users' });
-    }
+    } catch (err) { next(err); }
 });
 
-app.post('/api/admin/verify-user', authMiddleware, async (req, res) => {
+app.post('/api/admin/verify-user', authMiddleware, async (req, res, next) => {
     try {
         const { userId, status, reason } = req.body; 
 
@@ -270,12 +298,10 @@ app.post('/api/admin/verify-user', authMiddleware, async (req, res) => {
             message: `User identity ${status === 'Verified' ? 'Approved' : 'Rejected'}`, 
             status: user.isVerified 
         });
-    } catch (err) {
-        res.status(500).json({ message: 'Failed to update user verification status' });
-    }
+    } catch (err) { next(err); }
 });
 
-app.get('/api/admin/verification-history', authMiddleware, async (req, res) => {
+app.get('/api/admin/verification-history', authMiddleware, async (req, res, next) => {
     try {
         const admin = await User.findById(req.userId);
         if (admin.role !== 'admin') return res.status(403).json({ message: 'Admin Only' });
@@ -284,16 +310,13 @@ app.get('/api/admin/verification-history', authMiddleware, async (req, res) => {
                                   .select('email isVerified kycDetails')
                                   .sort({ 'kycDetails.reviewDate': -1 });
         res.json(history);
-    } catch (err) {
-        res.status(500).json({ message: 'Failed to fetch history' });
-    }
+    } catch (err) { next(err); }
 });
 
 
 // --- 💰 TRADING & HISTORY ROUTES ---
 
-// ၁။ BUY COIN WITH HISTORY LOGGING
-app.post('/api/buy-coin', authMiddleware, async (req, res) => {
+app.post('/api/buy-coin', authMiddleware, async (req, res, next) => {
   try {
     const { coinId, amount, pricePerCoin } = req.body;
     const totalCost = parseFloat(amount);
@@ -310,25 +333,23 @@ app.post('/api/buy-coin', authMiddleware, async (req, res) => {
     
     await user.save();
 
-    // 🔥 မှတ်တမ်းသိမ်းခြင်း
     const tradeLog = new Transaction({
         userId: user._id,
         email: user.email,
         type: 'Buy',
         coinId: coinId,
-        amount: totalCost, // Spent USDT
-        coinAmount: coinAmount, // Gained Asset
+        amount: totalCost, 
+        coinAmount: coinAmount, 
         pricePerCoin: pricePerCoin,
         status: 'Completed'
     });
     await tradeLog.save();
 
     res.json({ message: 'Buy Successful', balance: user.balance, holdings: user.holdings });
-  } catch (err) { res.status(500).json({ message: 'Buy Failed' }); }
+  } catch (err) { next(err); }
 });
 
-// ၂။ SELL COIN WITH HISTORY LOGGING
-app.post('/api/sell-coin', authMiddleware, async (req, res) => {
+app.post('/api/sell-coin', authMiddleware, async (req, res, next) => {
   try {
     const { coinId, amount, pricePerCoin } = req.body;
     const sellAmount = parseFloat(amount);
@@ -351,37 +372,33 @@ app.post('/api/sell-coin', authMiddleware, async (req, res) => {
 
     await user.save();
 
-    // 🔥 မှတ်တမ်းသိမ်းခြင်း
     const sellLog = new Transaction({
         userId: user._id,
         email: user.email,
         type: 'Sell',
         coinId: coinId,
-        amount: usdtReceived, // Earned USDT
-        coinAmount: sellAmount, // Sold Asset
+        amount: usdtReceived, 
+        coinAmount: sellAmount, 
         pricePerCoin: pricePerCoin,
         status: 'Completed'
     });
     await sellLog.save();
 
     res.json({ message: 'Sell Successful', balance: user.balance, holdings: user.holdings });
-  } catch (err) { res.status(500).json({ message: 'Sell Failed' }); }
+  } catch (err) { next(err); }
 });
 
-// ၃။ GET USER TRANSACTION HISTORY API
-app.get('/api/user/transactions', authMiddleware, async (req, res) => {
+app.get('/api/user/transactions', authMiddleware, async (req, res, next) => {
     try {
         const transactions = await Transaction.find({ userId: req.userId }).sort({ createdAt: -1 });
         res.json(transactions);
-    } catch (err) {
-        res.status(500).json({ message: 'Error fetching history' });
-    }
+    } catch (err) { next(err); }
 });
 
 
 // --- 💸 DEPOSIT & WITHDRAWAL ROUTES ---
 
-app.post('/api/user/deposit', authMiddleware, upload.single('slip'), async (req, res) => {
+app.post('/api/user/deposit', authMiddleware, upload.single('slip'), async (req, res, next) => {
     try {
         const { amount, method } = req.body;
         if (!req.file) return res.status(400).json({ message: 'Slip image is required' });
@@ -393,19 +410,19 @@ app.post('/api/user/deposit', authMiddleware, upload.single('slip'), async (req,
         });
         await newTransaction.save();
         res.json({ message: 'Deposit submitted!', status: 'Pending' });
-    } catch (err) { res.status(500).json({ message: 'Deposit failed' }); }
+    } catch (err) { next(err); }
 });
 
-app.get('/api/admin/pending-deposits', authMiddleware, async (req, res) => {
+app.get('/api/admin/pending-deposits', authMiddleware, async (req, res, next) => {
     try {
         const admin = await User.findById(req.userId);
         if (admin.role !== 'admin') return res.status(403).json({ message: 'Admin only' });
         const pending = await Transaction.find({ status: 'Pending', type: 'Deposit' }).sort({ createdAt: -1 });
         res.json(pending);
-    } catch (err) { res.status(500).json({ message: 'Error fetching' }); }
+    } catch (err) { next(err); }
 });
 
-app.post('/api/admin/verify-deposit', authMiddleware, async (req, res) => {
+app.post('/api/admin/verify-deposit', authMiddleware, async (req, res, next) => {
     try {
         const { transactionId, status } = req.body;
         const admin = await User.findById(req.userId);
@@ -421,11 +438,10 @@ app.post('/api/admin/verify-deposit', authMiddleware, async (req, res) => {
         trx.reviewDate = new Date();
         await trx.save();
         res.json({ message: `Deposit ${status}` });
-    } catch (err) { res.status(500).json({ message: 'Failed' }); }
+    } catch (err) { next(err); }
 });
 
-
-app.get('/api/crypto-prices', async (req, res) => {
+app.get('/api/crypto-prices', async (req, res, next) => {
   try {
     const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,binancecoin,solana,cardano&vs_currencies=usd&include_24hr_change=true');
     const data = await response.json();
@@ -439,4 +455,13 @@ app.get('/api/crypto-prices', async (req, res) => {
   } catch (error) { res.json({}); }
 });
 
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+// --- 🚨 Global Error Handler (Professional Way to handle crashes) ---
+app.use((err, req, res, next) => {
+    console.error('🔥 System Error:', err.stack);
+    res.status(500).json({ 
+        message: 'Internal Server Error',
+        error: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
+    });
+});
+
+app.listen(PORT, () => console.log(`🚀 Professional Server running on port ${PORT}`));
