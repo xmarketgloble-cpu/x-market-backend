@@ -102,23 +102,24 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
-// --- 📧 Email OTP System (Port 587 for Stability) ---
-const otpStore = new Map(); 
-
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587, // 👈 465 အစား 587 ကို သုံးပါ
-  secure: false, // 👈 Port 587 အတွက်ဆိုရင် false ဖြစ်ရပါမယ်
+  service: 'hotmail', // Outlook/Hotmail အတွက် hotmail လို့ပဲ သုံးရပါမယ်
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  },
-  family: 4, // Force IPv4
-  tls: {
-    ciphers: 'SSLv3', // Security ပိုကောင်းအောင် ထည့်ပေးထားပါတယ်
-    rejectUnauthorized: false
+    pass: process.env.EMAIL_PASS // Railway ထဲက App Password ကို ယူသုံးမှာပါ
   }
 });
+
+// Server တက်လာပြီး ၅ စက္ကန့်အကြာမှာ logs မှာ အတည်ပြုခိုင်းခြင်း
+setTimeout(() => {
+    transporter.verify((error, success) => {
+        if (error) {
+            console.log("❌ Outlook SMTP Error:", error.message);
+        } else {
+            console.log("📧 Email System is ready with Outlook App Password (IPv4 Verified)");
+        }
+    });
+}, 5000);
 // --- AUTH ROUTES ---
 
 app.post('/api/send-otp', async (req, res, next) => {
