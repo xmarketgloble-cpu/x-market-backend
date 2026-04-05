@@ -102,21 +102,20 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
-// --- 📧 Email OTP System (Updated for Stability) ---
+// --- 📧 Email OTP System (Port 587 for Stability) ---
 const otpStore = new Map(); 
 
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
-  port: 587, // 👈 465 အစား 587 ကို ပြောင်းပါ
-  secure: false, // 👈 587 အတွက်ဆိုရင် false ဖြစ်ရပါမယ်
+  port: 587, // 👈 465 အစား 587 ကို သုံးပါ
+  secure: false, // 👈 Port 587 အတွက်ဆိုရင် false ဖြစ်ရပါမယ်
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
   },
-  family: 4, 
+  family: 4, // Force IPv4
   tls: {
-    // 🔥 ဒီနေရာမှာ ciphers ထပ်ထည့်ပေးထားပါတယ်
-    ciphers: 'SSLv3',
+    ciphers: 'SSLv3', // Security ပိုကောင်းအောင် ထည့်ပေးထားပါတယ်
     rejectUnauthorized: false
   }
 });
