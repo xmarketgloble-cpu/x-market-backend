@@ -102,28 +102,21 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
-// --- 📧 Email OTP System (ENETUNREACH Fix) ---
+// --- 📧 Email OTP System (Detailed Logging) ---
 const otpStore = new Map(); 
 
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 465,
-  secure: true, // Port 465 အတွက် true ဖြစ်ရပါမယ်
+  secure: true, 
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
   },
-  // 🔥 ဒီအပိုင်းက Network Error ကို ဖြေရှင်းပေးမှာပါ
-  family: 4, 
+  family: 4, // Force IPv4 to prevent ENETUNREACH error
   tls: {
     rejectUnauthorized: false
   }
-});
-
-// Transporter verification
-transporter.verify((error, success) => {
-  if (error) console.error("❌ Email System Error:", error);
-  else console.log("📧 Email System is ready to send codes (IPv4 Verified)");
 });
 
 // --- AUTH ROUTES ---
@@ -154,7 +147,7 @@ app.post('/api/send-otp', async (req, res, next) => {
     };
 
     await transporter.sendMail(mailOptions);
-    console.log(`✅ OTP sent to: ${email}`);
+    console.log(`✅ OTP Successfully sent to: ${email}`);
     res.json({ message: 'Verification code sent!' });
   } catch (error) { 
     console.error("🔥 OTP Send Error:", error);
@@ -418,4 +411,16 @@ app.use((err, req, res, next) => {
 // --- 🚀 Server Start ---
 app.listen(PORT, () => {
     console.log(`🚀 Professional Server running on port ${PORT}`);
+    
+    // Server တက်လာပြီးမှ Email စနစ်ကို စစ်ဆေးခိုင်းခြင်း (ဒါမှ logs မှာ သေချာမြင်ရမှာပါ)
+    setTimeout(() => {
+        transporter.verify((error, success) => {
+            if (error) {
+                console.log("❌ Email Verification Error:");
+                console.error(error);
+            } else {
+                console.log("📧 Email System is ready to send codes (IPv4 Verified)");
+            }
+        });
+    }, 3000);
 });
