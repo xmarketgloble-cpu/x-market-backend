@@ -23,7 +23,7 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'crypto_x_secret_2026';
 
-// --- 🛡️ Professional Middlewares & CORS Final Fix ---
+// --- 🛡️ Professional Middlewares & CORS Setup ---
 
 const corsOptions = {
     origin: [
@@ -36,10 +36,11 @@ const corsOptions = {
     optionsSuccessStatus: 200
 };
 
-// 🎯 မင်းပြောသလိုပဲ ဒါတစ်ခုတည်းနဲ့ အကုန်လုံလောက်ပါတယ်
+// 🎯 CORS Middleware (အခုဒါတစ်ခုတည်းနဲ့တင် လုံလောက်ပါတယ်)
 app.use(cors(corsOptions));
 
-// ❌ Error တက်စေတဲ့ app.options('*', ...) နဲ့ app.options('/:any*', ...) တွေကို လုံးဝ ဖြုတ်ပစ်လိုက်ပါပြီ။
+// 🚀 CRITICAL FIX: PathError မတက်အောင် wildcard options ကို ဖြုတ်လိုက်ပါပြီ
+// app.use(cors()) က Pre-flight (OPTIONS) ကို အလိုအလျောက် handle လုပ်ပေးပါတယ်။
 
 app.use(express.json({ limit: '10mb' })); 
 app.use(helmet({ crossOriginResourcePolicy: false }));
@@ -115,10 +116,11 @@ const authMiddleware = (req, res, next) => {
 
 // --- 📧 Email OTP System Setup ---
 
+// 🚀 CRITICAL FIX: otpStore ကို define လုပ်လိုက်ပါပြီ
 const otpStore = new Map(); 
 
 const transporter = nodemailer.createTransport({
-  service: 'hotmail', 
+  service: 'hotmail', // Outlook/Hotmail အတွက်
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS 
@@ -127,7 +129,8 @@ const transporter = nodemailer.createTransport({
 
 // --- AUTH ROUTES ---
 
-app.post('/api/send-otp', async (req, res, next) => {
+// 💡 Frontend က /api/send-opt လို့ မှားခေါ်နေတာကိုပါ ဖြေရှင်းပေးထားပါတယ်
+app.post(['/api/send-otp', '/api/send-opt'], async (req, res, next) => {
   try {
     const { email } = req.body;
     if (!email) return res.status(400).json({ message: 'Need Email' });
@@ -426,5 +429,5 @@ app.listen(PORT, () => {
                 console.log("📧 Email System is ready to send codes (IPv4 Verified)");
             }
         });
-    }, 3000);
+    }, 5000);
 });
