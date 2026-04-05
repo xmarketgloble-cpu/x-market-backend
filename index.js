@@ -23,52 +23,37 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'crypto_x_secret_2026';
 
-// --- 🛡️ Professional CORS Configuration (Ultimate Fix) ---
-const allowedOrigins = [
-    "https://monumental-frangipane-d8ba7a.netlify.app",
-    "https://monumental-frangipane-d8ba7a.netlify.app/",
-    "http://localhost:5173",
-    "http://localhost:3000"
-];
+// --- 🛡️ Professional CORS Configuration (Path Error Fixed) ---
+// ❌ သတိထားရန် - app.options('*', ...) ကို လုံးဝမသုံးပါနဲ့။ ဒါက path-to-regexp error တက်စေတယ်။
+// ✅ CORS middleware တစ်ခုတည်းနဲ့ အကုန်လုံး အလုပ်လုပ်ပါတယ်။
 
 const corsOptions = {
-    origin: function (origin, callback) {
-        // Allow requests with no origin (like mobile apps or curl)
-        if (!origin) return callback(null, true);
-        if (allowedOrigins.indexOf(origin) !== -1) {
-            callback(null, true);
-        } else {
-            console.log('Blocked origin:', origin);
-            callback(null, true); // Still allow but log
-        }
-    },
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+    origin: [
+        "https://monumental-frangipane-d8ba7a.netlify.app", 
+        "http://localhost:5173",
+        "http://localhost:3000"
+    ],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
-    optionsSuccessStatus: 200,
-    preflightContinue: false
+    optionsSuccessStatus: 200
 };
 
-// Apply CORS middleware
+// ✅ CORS middleware - ဒီတစ်ခုတည်းနဲ့ လုံလောက်ပါတယ်
 app.use(cors(corsOptions));
 
-// Handle preflight requests explicitly
-app.options('*', cors(corsOptions));
+// ❌ အောက်ပါလိုင်းကို ဖြုတ်လိုက်ပါပြီ (error တက်စေတဲ့အတွက်)
+// app.options('*', cors(corsOptions));
 
 app.use(express.json({ limit: '10mb' })); 
-app.use(helmet({ 
-    crossOriginResourcePolicy: { policy: "cross-origin" },
-    crossOriginOpenerPolicy: { policy: "unsafe-none" }
-}));
+app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(morgan('dev'));
 
 // 🚦 Rate Limiter
 const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, 
     max: 100, 
-    message: { message: 'Too many requests from this IP, please try again after 15 minutes' },
-    standardHeaders: true,
-    legacyHeaders: false
+    message: { message: 'Too many requests from this IP, please try again after 15 minutes' }
 });
 app.use('/api/login', apiLimiter); 
 app.use('/api/register', apiLimiter);
@@ -135,6 +120,7 @@ const authMiddleware = (req, res, next) => {
 };
 
 // --- 📧 Email OTP System Setup ---
+
 const otpStore = new Map(); 
 
 // Clean up expired OTPs every 5 minutes
@@ -153,9 +139,6 @@ const transporter = nodemailer.createTransport({
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS 
-  },
-  tls: {
-    rejectUnauthorized: false
   }
 });
 
@@ -202,9 +185,40 @@ app.post('/api/send-otp', async (req, res, next) => {
 // 🚨 CRITICAL FIX: Frontend က /api/send-opt လို့ခေါ်ရင် ဒီ route က အလုပ်လုပ်မယ်
 app.post('/api/send-opt', async (req, res, next) => {
   console.log("🔄 Redirecting /send-opt to /send-otp");
-  // Forward to the actual send-otp handler
-  req.url = '/api/send-otp';
-  return app._router.handle(req, res, next);
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: 'Need Email' });
+    
+    const existingUser = await User.findOne({ email });
+    if (existingUser) return res.status(400).json({ message: 'Account Already exists' });
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    otpStore.set(email, { 
+        code: otp, 
+        expiresAt: Date.now() + 5 * 60 * 1000 
+    }); 
+
+    const mailOptions = {
+      from: `"X Market Security" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: 'X Market - Verification Code',
+      html: `<div style="font-family: Arial, sans-serif; padding: 30px; background-color: #0B0E11; color: #ffffff; border-radius: 12px; max-width: 500px; margin: auto; border: 1px solid #2B3139;">
+          <h2 style="color: #EAB308; text-align: center;">X Market Registration</h2>
+          <p>Your verification code is:</p>
+          <div style="text-align: center; margin: 20px 0;">
+            <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; background: #1E2329; padding: 15px 25px; border-radius: 8px; color: #ffffff;">${otp}</span>
+          </div>
+          <p style="font-size: 12px; color: #666; text-align: center;">This code will expire in 5 minutes. Do not share it with anyone.</p>
+        </div>`
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`✅ OTP Successfully sent to: ${email} (via /send-opt route)`);
+    res.json({ message: 'Verification code sent!' });
+  } catch (error) { 
+    console.error("🔥 OTP Send Error:", error);
+    next(error); 
+  }
 });
 
 app.post('/api/register', async (req, res, next) => {
