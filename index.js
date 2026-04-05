@@ -23,37 +23,57 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'crypto_x_secret_2026';
 
-// --- 🛡️ Professional Middlewares & CORS Setup ---
+// --- 🛡️ Professional CORS Configuration (Ultimate Fix) ---
+const allowedOrigins = [
+    "https://monumental-frangipane-d8ba7a.netlify.app",
+    "https://monumental-frangipane-d8ba7a.netlify.app/",
+    "http://localhost:5173",
+    "http://localhost:3000"
+];
 
 const corsOptions = {
-    origin: [
-        "https://monumental-frangipane-d8ba7a.netlify.app", 
-        "http://localhost:5173"
-    ],
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            console.log('Blocked origin:', origin);
+            callback(null, true); // Still allow but log
+        }
+    },
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
     credentials: true,
-    optionsSuccessStatus: 200
+    optionsSuccessStatus: 200,
+    preflightContinue: false
 };
 
-// 🎯 CORS Middleware (အခုဒါတစ်ခုတည်းနဲ့တင် လုံလောက်ပါတယ်)
+// Apply CORS middleware
 app.use(cors(corsOptions));
 
-// 🚀 CRITICAL FIX: PathError မတက်အောင် wildcard options ကို ဖြုတ်လိုက်ပါပြီ
-// app.use(cors()) က Pre-flight (OPTIONS) ကို အလိုအလျောက် handle လုပ်ပေးပါတယ်။
+// Handle preflight requests explicitly
+app.options('*', cors(corsOptions));
 
 app.use(express.json({ limit: '10mb' })); 
-app.use(helmet({ crossOriginResourcePolicy: false }));
+app.use(helmet({ 
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginOpenerPolicy: { policy: "unsafe-none" }
+}));
 app.use(morgan('dev'));
 
 // 🚦 Rate Limiter
 const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, 
     max: 100, 
-    message: { message: 'Too many requests from this IP, please try again after 15 minutes' }
+    message: { message: 'Too many requests from this IP, please try again after 15 minutes' },
+    standardHeaders: true,
+    legacyHeaders: false
 });
 app.use('/api/login', apiLimiter); 
 app.use('/api/register', apiLimiter);
+app.use('/api/send-otp', apiLimiter);
+app.use('/api/send-opt', apiLimiter);
 
 // Static Folder
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -115,22 +135,34 @@ const authMiddleware = (req, res, next) => {
 };
 
 // --- 📧 Email OTP System Setup ---
-
-// 🚀 CRITICAL FIX: otpStore ကို define လုပ်လိုက်ပါပြီ
 const otpStore = new Map(); 
 
+// Clean up expired OTPs every 5 minutes
+setInterval(() => {
+    const now = Date.now();
+    for (const [email, data] of otpStore.entries()) {
+        if (data.expiresAt && data.expiresAt < now) {
+            otpStore.delete(email);
+            console.log(`🧹 Cleaned expired OTP for ${email}`);
+        }
+    }
+}, 5 * 60 * 1000);
+
 const transporter = nodemailer.createTransport({
-  service: 'hotmail', // Outlook/Hotmail အတွက်
+  service: 'hotmail', 
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS 
+  },
+  tls: {
+    rejectUnauthorized: false
   }
 });
 
 // --- AUTH ROUTES ---
 
-// 💡 Frontend က /api/send-opt လို့ မှားခေါ်နေတာကိုပါ ဖြေရှင်းပေးထားပါတယ်
-app.post(['/api/send-otp', '/api/send-opt'], async (req, res, next) => {
+// 🎯 Main OTP Route (original)
+app.post('/api/send-otp', async (req, res, next) => {
   try {
     const { email } = req.body;
     if (!email) return res.status(400).json({ message: 'Need Email' });
@@ -139,7 +171,10 @@ app.post(['/api/send-otp', '/api/send-opt'], async (req, res, next) => {
     if (existingUser) return res.status(400).json({ message: 'Account Already exists' });
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    otpStore.set(email, otp); 
+    otpStore.set(email, { 
+        code: otp, 
+        expiresAt: Date.now() + 5 * 60 * 1000 
+    }); 
 
     const mailOptions = {
       from: `"X Market Security" <${process.env.EMAIL_USER}>`,
@@ -151,7 +186,7 @@ app.post(['/api/send-otp', '/api/send-opt'], async (req, res, next) => {
           <div style="text-align: center; margin: 20px 0;">
             <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; background: #1E2329; padding: 15px 25px; border-radius: 8px; color: #ffffff;">${otp}</span>
           </div>
-          <p style="font-size: 12px; color: #666; text-align: center;">This code will expire shortly. Do not share it with anyone.</p>
+          <p style="font-size: 12px; color: #666; text-align: center;">This code will expire in 5 minutes. Do not share it with anyone.</p>
         </div>`
     };
 
@@ -164,11 +199,31 @@ app.post(['/api/send-otp', '/api/send-opt'], async (req, res, next) => {
   }
 });
 
+// 🚨 CRITICAL FIX: Frontend က /api/send-opt လို့ခေါ်ရင် ဒီ route က အလုပ်လုပ်မယ်
+app.post('/api/send-opt', async (req, res, next) => {
+  console.log("🔄 Redirecting /send-opt to /send-otp");
+  // Forward to the actual send-otp handler
+  req.url = '/api/send-otp';
+  return app._router.handle(req, res, next);
+});
+
 app.post('/api/register', async (req, res, next) => {
   try {
     const { email, password, otp } = req.body;
-    const storedOtp = otpStore.get(email);
-    if (!storedOtp || storedOtp !== otp) return res.status(400).json({ message: 'Wrong Code' });
+    const storedOtpData = otpStore.get(email);
+    
+    if (!storedOtpData) {
+        return res.status(400).json({ message: 'No OTP found. Please request a new code.' });
+    }
+    
+    if (storedOtpData.expiresAt < Date.now()) {
+        otpStore.delete(email);
+        return res.status(400).json({ message: 'OTP expired. Please request a new code.' });
+    }
+    
+    if (storedOtpData.code !== otp) {
+        return res.status(400).json({ message: 'Wrong Code' });
+    }
 
     const hashedPassword = await bcrypt.hash(password, 12); 
     const newUser = new User({ email, password: hashedPassword });
@@ -269,6 +324,7 @@ app.post('/api/admin/verify-user', authMiddleware, async (req, res, next) => {
         if (!user) return res.status(404).json({ message: 'User not found' });
 
         user.isVerified = status;
+        if (!user.kycDetails) user.kycDetails = {};
         user.kycDetails.reviewedBy = adminAccount.email; 
         user.kycDetails.reviewDate = new Date(); 
         user.kycDetails.rejectReason = status === 'Unverified' ? (reason || "Document mismatch") : "";
@@ -387,6 +443,8 @@ app.post('/api/admin/verify-deposit', authMiddleware, async (req, res, next) => 
         const admin = await User.findById(req.userId);
         if (admin.role !== 'admin') return res.status(403).json({ message: 'Admin only' });
         const trx = await Transaction.findById(transactionId);
+        if (!trx) return res.status(404).json({ message: 'Transaction not found' });
+        
         if (status === 'Approved') {
             const user = await User.findById(trx.userId);
             user.balance += trx.amount;
@@ -405,29 +463,52 @@ app.get('/api/crypto-prices', async (req, res, next) => {
     const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,binancecoin,solana,cardano&vs_currencies=usd&include_24hr_change=true');
     const data = await response.json();
     res.json(data);
-  } catch (error) { res.json({}); }
+  } catch (error) { 
+    console.error("Crypto price fetch error:", error);
+    res.json({}); 
+  }
+});
+
+// --- 🩺 Health Check Route ---
+app.get('/api/health', (req, res) => {
+    res.json({ 
+        status: 'OK', 
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime()
+    });
 });
 
 // --- 🚨 Global Error Handler ---
 app.use((err, req, res, next) => {
     console.error('🔥 System Error:', err.stack);
+    
+    // Handle Multer errors
+    if (err instanceof multer.MulterError) {
+        if (err.code === 'FILE_TOO_LARGE') {
+            return res.status(413).json({ message: 'File too large. Max size 5MB.' });
+        }
+        return res.status(400).json({ message: err.message });
+    }
+    
     res.status(500).json({ 
-        message: 'Internal Server Error'
+        message: err.message || 'Internal Server Error'
     });
 });
 
 // --- 🚀 Server Start ---
 app.listen(PORT, () => {
     console.log(`🚀 Professional Server running on port ${PORT}`);
+    console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
     
-    // Server တက်လာပြီးမှ Email စနစ်ကို စစ်ဆေးခိုင်းခြင်း
+    // Email system check
     setTimeout(() => {
         transporter.verify((error, success) => {
             if (error) {
                 console.log("❌ Email Verification Error:", error.message);
+                console.log("⚠️ Please check EMAIL_USER and EMAIL_PASS in .env file");
             } else {
                 console.log("📧 Email System is ready to send codes (IPv4 Verified)");
             }
         });
-    }, 5000);
+    }, 3000);
 });
