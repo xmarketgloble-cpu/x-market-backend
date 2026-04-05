@@ -102,7 +102,7 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
-// --- 📧 Email OTP System ---
+// --- 📧 Email OTP System (ENETUNREACH Fix) ---
 const otpStore = new Map(); 
 
 const transporter = nodemailer.createTransport({
@@ -110,6 +110,8 @@ const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 465,
   secure: true,
+  // 🚀 Force IPv4 to resolve 'ENETUNREACH' networking issues on Railway
+  family: 4, 
   auth: {
     user: process.env.EMAIL_USER, 
     pass: process.env.EMAIL_PASS  
@@ -122,7 +124,7 @@ const transporter = nodemailer.createTransport({
 // Transporter verification
 transporter.verify((error, success) => {
   if (error) console.error("❌ Email System Error:", error);
-  else console.log("📧 Email System is ready to send codes");
+  else console.log("📧 Email System is ready to send codes (IPv4 Verified)");
 });
 
 // --- AUTH ROUTES ---
