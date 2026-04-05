@@ -10,9 +10,9 @@ const path = require('path');
 const fs = require('fs');
 
 // 🔥 Professional Packages 
-const helmet = require('helmet'); // လုံခြုံရေးအတွက် HTTP Headers တွေကို ကာကွယ်ပေးသည်
-const morgan = require('morgan'); // API ခေါ်ဆိုမှုတိုင်းကို Terminal တွင် စနစ်တကျ မှတ်တမ်းတင်ပေးသည်
-const rateLimit = require('express-rate-limit'); // Bot ရန်မှ ကာကွယ်ပေးသည်
+const helmet = require('helmet'); // HTTP Headers လုံခြုံရေး
+const morgan = require('morgan'); // API logging
+const rateLimit = require('express-rate-limit'); // DDOS Protection
 
 dotenv.config();
 
@@ -25,7 +25,6 @@ const JWT_SECRET = process.env.JWT_SECRET || 'crypto_x_secret_2026';
 
 // --- 🛡️ Professional Middlewares ---
 
-// ✅ CORS Config: Frontend Link ကို သေချာသတ်မှတ်ပေးခြင်း (CORS Error မတက်အောင်)
 app.use(cors({
     origin: ["https://monumental-frangipane-d8ba7a.netlify.app", "http://localhost:5173"],
     credentials: true
@@ -75,7 +74,6 @@ const upload = multer({
     }
 });
 
-
 // --- 🗄️ MongoDB Connection ---
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/crypto_exchange';
 
@@ -104,12 +102,11 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
-// --- 📧 Email OTP System (Professional Optimized Settings) ---
+// --- 📧 Email OTP System ---
 const otpStore = new Map(); 
 
-// ✅ Gmail connection ကို ပိုမိုတည်ငြိမ်အောင် ပြင်ဆင်ထားသည်
 const transporter = nodemailer.createTransport({
-  service: 'gmail', // Service နာမည်တိုက်ရိုက်သုံးခြင်းက ပိုစိတ်ချရသည်
+  service: 'gmail',
   host: 'smtp.gmail.com',
   port: 465,
   secure: true,
@@ -118,11 +115,11 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASS  
   },
   tls: {
-    rejectUnauthorized: false // ချိတ်ဆက်မှု Error မတက်အောင် ကာကွယ်ရန်
+    rejectUnauthorized: false
   }
 });
 
-// Transporter ကို စတင်စစ်ဆေးခြင်း
+// Transporter verification
 transporter.verify((error, success) => {
   if (error) console.error("❌ Email System Error:", error);
   else console.log("📧 Email System is ready to send codes");
@@ -211,7 +208,6 @@ app.get('/api/user/me', authMiddleware, async (req, res, next) => {
     } catch (err) { next(err); }
 });
 
-
 // --- 👮 KYC & PROFILE ROUTES ---
 
 app.post('/api/user/upload-profile', authMiddleware, upload.single('profilePic'), async (req, res, next) => {
@@ -246,7 +242,6 @@ app.post('/api/user/submit-kyc', authMiddleware, upload.fields([
         res.json({ message: 'Verification details submitted for review!', status: 'Pending' });
     } catch (err) { next(err); }
 });
-
 
 // --- 👑 ADMIN CONTROL ROUTES ---
 
@@ -292,7 +287,6 @@ app.post('/api/admin/verify-user', authMiddleware, async (req, res, next) => {
         res.json({ message: `User identity ${status}`, status: user.isVerified });
     } catch (err) { next(err); }
 });
-
 
 // --- 💰 TRADING ROUTES ---
 
@@ -358,7 +352,6 @@ app.get('/api/user/transactions', authMiddleware, async (req, res, next) => {
     } catch (err) { next(err); }
 });
 
-
 // --- 💸 DEPOSIT ROUTES ---
 
 app.post('/api/user/deposit', authMiddleware, upload.single('slip'), async (req, res, next) => {
@@ -421,7 +414,7 @@ app.use((err, req, res, next) => {
     });
 });
 
+// --- 🚀 Server Start ---
 app.listen(PORT, () => {
     console.log(`🚀 Professional Server running on port ${PORT}`);
-    console.log(`📡 API Base URL: ${API_BASE_URL}`);
 });
