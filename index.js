@@ -23,7 +23,7 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'crypto_x_secret_2026';
 
-// --- 🛡️ Professional Middlewares & CORS Fix ---
+// --- 🛡️ Professional Middlewares & CORS Setup ---
 
 const corsOptions = {
     origin: [
@@ -38,8 +38,9 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-// 🚀 CRITICAL FIX: PathError မတက်အောင် wildcard ကို နာမည်ပေးထားပါတယ်
-app.options('/:any*', cors(corsOptions)); 
+// 🚀 CRITICAL FIX: Path-to-RegExp error မတက်အောင် wildcard ကို စနစ်တကျ ပြောင်းလဲထားပါတယ်
+// Node.js v22+ မှာ app.options('*') ထက် app.use(cors()) က ပိုစိတ်ချရပါတယ်
+app.options('*', cors(corsOptions)); 
 
 app.use(express.json({ limit: '10mb' })); 
 app.use(helmet({ crossOriginResourcePolicy: false }));
@@ -115,7 +116,7 @@ const authMiddleware = (req, res, next) => {
 
 // --- 📧 Email OTP System Setup ---
 
-// 🚀 CRITICAL FIX: otpStore ကို define လုပ်လိုက်ပါပြီ
+// 🚀 OTP သိမ်းဆည်းရန် Store ကို define လုပ်လိုက်ပါပြီ
 const otpStore = new Map(); 
 
 const transporter = nodemailer.createTransport({
@@ -132,7 +133,7 @@ setTimeout(() => {
         if (error) {
             console.log("❌ Email Verification Error:", error.message);
         } else {
-            console.log("📧 Email System is ready to send codes (IPv4 Verified)");
+            console.log("📧 Email System is ready (Outlook IPv4 Verified)");
         }
     });
 }, 5000);
