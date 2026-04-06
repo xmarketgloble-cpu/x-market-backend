@@ -46,14 +46,14 @@ app.use(cors({
     optionsSuccessStatus: 200
 }));
 
-// ✅ Handle preflight requests explicitly
-app.options('*', cors());
+// ⚠️ အောက်ပါ line ကို ဖျက်လိုက်ပါ (သို့) မှတ်ချက်ပေးပါ
+// app.options('*', cors());   // ← ဒီတစ်ကြောင်းကို ဖျက်ပါ
 
 // --- 🛡️ Other Middlewares ---
 app.use(express.json({ limit: '10mb' }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// --- 📝 Request Logger (Optional but professional) ---
+// --- 📝 Request Logger ---
 app.use((req, res, next) => {
     console.log(`📡 ${req.method} ${req.url} - Origin: ${req.headers.origin}`);
     next();
@@ -78,7 +78,7 @@ const transporter = nodemailer.createTransport({
     }
 });
 
-// --- 🗃️ OTP Store (In-memory cache) ---
+// --- 🗃️ OTP Store ---
 const otpStore = new Map(); 
 
 // --- 🧹 Clean expired OTPs every 5 minutes ---
@@ -90,7 +90,7 @@ setInterval(() => {
             console.log(`🗑️ Expired OTP cleaned for: ${email}`);
         }
     }
-}, 300000); // 5 minutes
+}, 300000);
 
 // ============================================
 // 🎯 AUTH ROUTES
@@ -185,13 +185,6 @@ app.get('/api/health', (req, res) => {
 });
 
 // --- 🧪 CORS Test Endpoint ---
-app.options('/api/test-cors', (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    res.sendStatus(200);
-});
-
 app.get('/api/test-cors', (req, res) => {
     res.json({ message: 'CORS is working!', origin: req.headers.origin });
 });
