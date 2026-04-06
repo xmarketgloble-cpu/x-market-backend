@@ -13,11 +13,12 @@ dotenv.config();
 const User = require('./models/User'); 
 const Transaction = require('./models/Transaction'); 
 
-const app = express();
-// Railway ၏ Dynamic Port ကို အသုံးပြုရန် process.env.PORT ကို ဦးစားပေးသည်
+// index.js
 const PORT = process.env.PORT || 5000;
-const JWT_SECRET = process.env.JWT_SECRET || 'crypto_x_secret_2026';
 
+app.listen(PORT, '0.0.0.0', () => { // ✨ '0.0.0.0' ဆိုတာ ပါမှ Networking ပွင့်တာပါ
+    console.log(`🚀 Server running on port ${PORT}`);
+});
 // --- 🛡️ Professional Middlewares Setup ---
 
 // ✅ CORS Configuration: Netlify URL အသစ်ကို အသေအချာ ခွင့်ပြုထားသည်
