@@ -19,12 +19,12 @@ const JWT_SECRET = process.env.JWT_SECRET || 'crypto_x_secret_2026';
 
 // --- 🛡️ Professional Middlewares Setup ---
 
-// ✅ CORS ကို အသေအချာ သတ်မှတ်ခြင်း (Netlify URL ကို ခွင့်ပြုရန်)
+// ✅ CORS ကို URL အသစ် (xmarket-pro-2026) အတွက် အသေအချာ ပြင်ဆင်ခြင်း
 app.use(cors({
     origin: [
-        "https://monumental-frangipane-d8ba7a.netlify.app", // မင်းရဲ့ Netlify Frontend URL
-        "http://localhost:5173", // Local React (Vite) အတွက်
-        "http://localhost:3000"  // Local React (CRA) အတွက်
+        "https://xmarket-pro-2026.netlify.app", // ✨ မင်းရဲ့ Netlify URL အသစ်
+        "http://localhost:5173",                // Local Vite
+        "http://localhost:3000"                 // Local CRA
     ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -39,14 +39,14 @@ mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('✅ MongoDB Connected Successfully'))
   .catch(err => {
       console.error('❌ DB Connection Error:', err.message);
-      process.exit(1); // DB မချိတ်မိရင် ဆာဗာကို ပိတ်လိုက်ရန်
+      process.exit(1); 
   });
 
 // --- 📧 Email Setup (Mailtrap) ---
 const transporter = nodemailer.createTransport({
     host: "sandbox.smtp.mailtrap.io",
     port: 587,
-    secure: false, // port 587 အတွက် false ထားရပါမည်
+    secure: false, 
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS 
@@ -80,11 +80,13 @@ app.post('/api/send-otp', async (req, res) => {
       subject: 'Your Verification Code - X Market',
       html: `
         <div style="font-family: sans-serif; padding: 20px; background-color: #f4f4f4;">
-            <div style="max-width: 500px; margin: auto; background: white; padding: 20px; border-radius: 10px;">
-                <h2 style="color: #333;">Verification Code</h2>
-                <p>Use the following code to complete your registration:</p>
-                <h1 style="color: #EAB308; letter-spacing: 5px; text-align: center;">${otp}</h1>
-                <p style="font-size: 12px; color: #888;">This code will expire in 5 minutes.</p>
+            <div style="max-width: 500px; margin: auto; background: white; padding: 20px; border-radius: 10px; border-top: 4px solid #EAB308;">
+                <h2 style="color: #333; text-align: center;">Verification Code</h2>
+                <p style="color: #666; font-size: 16px;">Use the following code to complete your registration:</p>
+                <div style="background: #FFF9E6; padding: 15px; border-radius: 8px; text-align: center; margin: 20px 0;">
+                    <h1 style="color: #EAB308; letter-spacing: 8px; margin: 0; font-size: 32px;">${otp}</h1>
+                </div>
+                <p style="font-size: 12px; color: #888; text-align: center;">This code will expire in 5 minutes.</p>
             </div>
         </div>
       `
@@ -102,7 +104,6 @@ app.post('/api/register', async (req, res) => {
   try {
     const { email, password, otp } = req.body;
     
-    // Validation
     if (!email || !password || !otp) {
         return res.status(400).json({ message: 'All fields are required' });
     }
@@ -113,7 +114,6 @@ app.post('/api/register', async (req, res) => {
         return res.status(400).json({ message: 'Invalid or Expired OTP' });
     }
 
-    // အီးမေးလ် ရှိပြီးသားလား စစ်ဆေးခြင်း
     const existingUser = await User.findOne({ email });
     if (existingUser) {
         return res.status(400).json({ message: 'Email already registered' });
@@ -123,7 +123,7 @@ app.post('/api/register', async (req, res) => {
     const newUser = new User({ email, password: hashedPassword });
     await newUser.save();
     
-    otpStore.delete(email); // OTP ကို ပြန်ဖျက်ခြင်း
+    otpStore.delete(email); 
     res.status(201).json({ message: 'Account Created Successfully!' });
   } catch (error) { 
     res.status(500).json({ message: 'Registration Failed', error: error.message }); 
@@ -142,7 +142,6 @@ app.post('/api/login', async (req, res) => {
 
     const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '1d' });
     
-    // Password ကို response ထဲမှာ ပြန်မပို့ရန်
     const userObj = user.toObject();
     delete userObj.password;
 
@@ -156,7 +155,7 @@ app.post('/api/login', async (req, res) => {
 app.get('/api/health', (req, res) => {
     res.json({ 
         status: 'OK', 
-        message: 'Server is healthy and CORS is configured',
+        message: 'Server is healthy and configured for xmarket-pro-2026',
         timestamp: new Date().toISOString()
     });
 });
@@ -164,5 +163,5 @@ app.get('/api/health', (req, res) => {
 // Server Start
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`🌐 Configured for Netlify Origin: https://monumental-frangipane-d8ba7a.netlify.app`);
+    console.log(`🌐 CORS Allowed for: https://xmarket-pro-2026.netlify.app`);
 });
