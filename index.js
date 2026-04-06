@@ -13,27 +13,51 @@ dotenv.config();
 const User = require('./models/User'); 
 const Transaction = require('./models/Transaction'); 
 
-// ✅ ၁။ App အရင် ကြေညာရမည်
+// ✅ App initialization
 const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'crypto_x_secret_2026';
 
-// --- 🛡️ Professional Middlewares Setup ---
+// --- 🛡️ Allowed Origins List ---
+const allowedOrigins = [
+    "https://xmarket-pro-2026.netlify.app",
+    "https://xmarket-pro-2026.netlify.app/",
+    "http://localhost:5173",
+    "http://localhost:3000"
+];
 
-// ✅ ၂။ App ကြေညာပြီးမှ Middleware များ သုံးရမည်
+// --- 🛡️ Professional CORS Configuration ---
 app.use(cors({
-    origin: [
-        "https://xmarket-pro-2026.netlify.app",
-        "http://localhost:5173",
-        "http://localhost:3000"
-    ],
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps, curl, postman)
+        if (!origin) return callback(null, true);
+        
+        if (allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            console.log(`❌ CORS blocked for origin: ${origin}`);
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"]
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    exposedHeaders: ["Content-Range", "X-Content-Range"],
+    optionsSuccessStatus: 200
 }));
 
+// ✅ Handle preflight requests explicitly
+app.options('*', cors());
+
+// --- 🛡️ Other Middlewares ---
 app.use(express.json({ limit: '10mb' }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// --- 📝 Request Logger (Optional but professional) ---
+app.use((req, res, next) => {
+    console.log(`📡 ${req.method} ${req.url} - Origin: ${req.headers.origin}`);
+    next();
+});
 
 // --- 🗄️ MongoDB Connection ---
 mongoose.connect(process.env.MONGO_URI)
@@ -54,10 +78,25 @@ const transporter = nodemailer.createTransport({
     }
 });
 
+// --- 🗃️ OTP Store (In-memory cache) ---
 const otpStore = new Map(); 
 
-// --- 🎯 AUTH ROUTES ---
+// --- 🧹 Clean expired OTPs every 5 minutes ---
+setInterval(() => {
+    const now = Date.now();
+    for (const [email, data] of otpStore.entries()) {
+        if (data.expiresAt < now) {
+            otpStore.delete(email);
+            console.log(`🗑️ Expired OTP cleaned for: ${email}`);
+        }
+    }
+}, 300000); // 5 minutes
 
+// ============================================
+// 🎯 AUTH ROUTES
+// ============================================
+
+// --- 📤 Send OTP ---
 app.post('/api/send-otp', async (req, res) => {
   try {
     const { email } = req.body;
@@ -91,11 +130,12 @@ app.post('/api/send-otp', async (req, res) => {
 
     res.json({ message: 'OTP Sent Successfully!' });
   } catch (error) { 
-    console.error("Email Error:", error);
+    console.error("❌ Email Error:", error);
     res.status(500).json({ message: 'Failed to send OTP', error: error.message }); 
   }
 });
 
+// --- 📝 Register User ---
 app.post('/api/register', async (req, res) => {
   try {
     const { email, password, otp } = req.body;
@@ -116,10 +156,12 @@ app.post('/api/register', async (req, res) => {
     otpStore.delete(email); 
     res.status(201).json({ message: 'Account Created Successfully!' });
   } catch (error) { 
+    console.error("❌ Register Error:", error);
     res.status(500).json({ message: 'Registration Failed', error: error.message }); 
   }
 });
 
+// --- 🔐 Login User ---
 app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -132,16 +174,32 @@ app.post('/api/login', async (req, res) => {
     delete userObj.password;
     res.json({ token, user: userObj });
   } catch (error) { 
+    console.error("❌ Login Error:", error);
     res.status(500).json({ message: 'Login Failed', error: error.message }); 
   }
 });
 
+// --- ❤️ Health Check Endpoint ---
 app.get('/api/health', (req, res) => {
     res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-// ✅ ၃။ Listen ကို အမြဲတမ်း အောက်ဆုံးမှာ ထားရမည်
+// --- 🧪 CORS Test Endpoint ---
+app.options('/api/test-cors', (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.sendStatus(200);
+});
+
+app.get('/api/test-cors', (req, res) => {
+    res.json({ message: 'CORS is working!', origin: req.headers.origin });
+});
+
+// ============================================
+// 🚀 START SERVER
+// ============================================
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`🌐 Trusted Origin: https://xmarket-pro-2026.netlify.app`);
+    console.log(`🌐 Trusted Origins: ${allowedOrigins.join(', ')}`);
 });
