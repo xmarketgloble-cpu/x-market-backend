@@ -23,42 +23,17 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'crypto_x_secret_2026';
 
-// --- 🛡️ Professional CORS Configuration (Final Fix for Preflight & Netlify) ---
-
-const corsOptions = {
-    origin: [
-        "https://monumental-frangipane-d8ba7a.netlify.app", 
-        "http://localhost:5173",
-        "http://localhost:3000"
-    ],
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+// --- 🛡️ Bulletproof CORS (Nuclear Option) ---
+// ⚠️ ဒီနေရာမှာ CORS အရှုပ်အရှင်းတွေ အားလုံးကို ဖြတ်ပြီး ဘယ်ကလာလာ အကုန် လက်ခံပေးလိုက်ပါပြီ။
+app.use(cors({ 
+    origin: true, 
     credentials: true,
-    optionsSuccessStatus: 200
-};
-
-// 🎯 Custom Middleware to handle Preflight (OPTIONS) and Headers explicitly
-app.use((req, res, next) => {
-    const origin = req.headers.origin;
-    if (corsOptions.origin.includes(origin)) {
-        res.setHeader('Access-Control-Allow-Origin', origin);
-    }
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    
-    // Browser က OPTIONS request လှမ်းမေးရင် 200 OK တန်းပြန်ပေးဖို့ (CORS Fix)
-    if (req.method === 'OPTIONS') {
-        return res.sendStatus(200);
-    }
-    next();
-});
-
-// Apply Standard CORS
-app.use(cors(corsOptions));
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"]
+}));
 
 app.use(express.json({ limit: '10mb' })); 
-app.use(helmet({ crossOriginResourcePolicy: false }));
+// app.use(helmet({ crossOriginResourcePolicy: false })); // CORS နဲ့ မငြိအောင် Helmet ကို ခေတ္တပိတ်ထားပါသည်
 app.use(morgan('dev'));
 
 // 🚦 Rate Limiter
