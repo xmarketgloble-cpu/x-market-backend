@@ -23,7 +23,7 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'crypto_x_secret_2026';
 
-// --- 🛡️ Professional CORS Configuration (Path Error Fixed) ---
+// --- 🛡️ Professional CORS Configuration (Final Fix for Preflight & Netlify) ---
 
 const corsOptions = {
     origin: [
@@ -37,7 +37,24 @@ const corsOptions = {
     optionsSuccessStatus: 200
 };
 
-// ✅ CORS middleware - ဒီတစ်ခုတည်းနဲ့ လုံလောက်ပါတယ်
+// 🎯 Custom Middleware to handle Preflight (OPTIONS) and Headers explicitly
+app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (corsOptions.origin.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    
+    // Browser က OPTIONS request လှမ်းမေးရင် 200 OK တန်းပြန်ပေးဖို့ (CORS Fix)
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(200);
+    }
+    next();
+});
+
+// Apply Standard CORS
 app.use(cors(corsOptions));
 
 app.use(express.json({ limit: '10mb' })); 
@@ -129,7 +146,7 @@ setInterval(() => {
     }
 }, 5 * 60 * 1000);
 
-// 🚀 CRITICAL FIX: Outlook အစား Mailtrap (Reliable Testing SMTP) ကို အသုံးပြုထားပါတယ်
+// 🚀 CRITICAL FIX: Mailtrap (Reliable Testing SMTP) Configuration
 const transporter = nodemailer.createTransport({
     host: "sandbox.smtp.mailtrap.io",
     port: 2525,
@@ -179,9 +196,9 @@ app.post('/api/send-otp', async (req, res, next) => {
   }
 });
 
-// 🚨 CRITICAL FIX: Frontend က /api/send-opt လို့ခေါ်ရင် ဒီ route က အလုပ်လုပ်မယ်
+// 🚨 Dual Route: Handles both /send-otp and /send-opt
 app.post('/api/send-opt', async (req, res, next) => {
-  console.log("🔄 Redirecting /send-opt to /send-otp");
+  console.log("🔄 Redirecting /send-opt to main logic");
   try {
     const { email } = req.body;
     if (!email) return res.status(400).json({ message: 'Need Email' });
@@ -210,7 +227,7 @@ app.post('/api/send-opt', async (req, res, next) => {
     };
 
     await transporter.sendMail(mailOptions);
-    console.log(`✅ OTP Successfully sent to: ${email} (via /send-opt route)`);
+    console.log(`✅ OTP Successfully sent to: ${email} (via /send-opt)`);
     res.json({ message: 'Verification code sent!' });
   } catch (error) { 
     console.error("🔥 OTP Send Error:", error);
@@ -493,7 +510,6 @@ app.get('/api/health', (req, res) => {
 app.use((err, req, res, next) => {
     console.error('🔥 System Error:', err.stack);
     
-    // Handle Multer errors
     if (err instanceof multer.MulterError) {
         if (err.code === 'FILE_TOO_LARGE') {
             return res.status(413).json({ message: 'File too large. Max size 5MB.' });
@@ -509,14 +525,11 @@ app.use((err, req, res, next) => {
 // --- 🚀 Server Start ---
 app.listen(PORT, () => {
     console.log(`🚀 Professional Server running on port ${PORT}`);
-    console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
     
-    // Email system check with Mailtrap configuration
     setTimeout(() => {
         transporter.verify((error, success) => {
             if (error) {
                 console.log("❌ Mailtrap Verification Error:", error.message);
-                console.log("⚠️ Please check EMAIL_USER and EMAIL_PASS in your environment variables.");
             } else {
                 console.log("📧 Mailtrap is ready! OTP testing mode active.");
             }
