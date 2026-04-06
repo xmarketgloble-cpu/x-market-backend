@@ -1,6 +1,5 @@
 const express = require('express');
 const mongoose = require('mongoose');
-const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
@@ -23,17 +22,28 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'crypto_x_secret_2026';
 
-// --- 🛡️ Bulletproof CORS (Nuclear Option) ---
-// ⚠️ ဒီနေရာမှာ CORS အရှုပ်အရှင်းတွေ အားလုံးကို ဖြတ်ပြီး ဘယ်ကလာလာ အကုန် လက်ခံပေးလိုက်ပါပြီ။
-app.use(cors({ 
-    origin: true, 
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"]
-}));
+// 🚀 THE ULTIMATE CORS SLEDGEHAMMER (Manual Override)
+// သူများ package တွေ မသုံးတော့ဘဲ Browser တောင်းသမျှ ခွင့်ပြုချက်ကို ချက်ချင်းပေးမယ့်စနစ်
+app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+    } else {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+    }
+    
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+
+    // Browser က OPTIONS (Preflight) လှမ်းမေးရင် Rate Limit တွေဆီ မရောက်ခင် ချက်ချင်း 200 OK ပြန်ပေးမယ်!
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+    }
+    next();
+});
 
 app.use(express.json({ limit: '10mb' })); 
-// app.use(helmet({ crossOriginResourcePolicy: false })); // CORS နဲ့ မငြိအောင် Helmet ကို ခေတ္တပိတ်ထားပါသည်
 app.use(morgan('dev'));
 
 // 🚦 Rate Limiter
@@ -121,7 +131,7 @@ setInterval(() => {
     }
 }, 5 * 60 * 1000);
 
-// 🚀 CRITICAL FIX: Mailtrap (Reliable Testing SMTP) Configuration
+// 🚀 CRITICAL FIX: Mailtrap Configuration
 const transporter = nodemailer.createTransport({
     host: "sandbox.smtp.mailtrap.io",
     port: 2525,
