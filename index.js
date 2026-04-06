@@ -14,17 +14,18 @@ const User = require('./models/User');
 const Transaction = require('./models/Transaction'); 
 
 const app = express();
+// Railway ၏ Dynamic Port ကို အသုံးပြုရန် process.env.PORT ကို ဦးစားပေးသည်
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'crypto_x_secret_2026';
 
 // --- 🛡️ Professional Middlewares Setup ---
 
-// ✅ CORS ကို URL အသစ် (xmarket-pro-2026) အတွက် အသေအချာ ပြင်ဆင်ခြင်း
+// ✅ CORS Configuration: Netlify URL အသစ်ကို အသေအချာ ခွင့်ပြုထားသည်
 app.use(cors({
     origin: [
-        "https://xmarket-pro-2026.netlify.app", // ✨ မင်းရဲ့ Netlify URL အသစ်
-        "http://localhost:5173",                // Local Vite
-        "http://localhost:3000"                 // Local CRA
+        "https://xmarket-pro-2026.netlify.app", // ✨ Updated Netlify Domain
+        "http://localhost:5173",                // Local Development (Vite)
+        "http://localhost:3000"                 // Local Development (CRA)
     ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -53,7 +54,7 @@ const transporter = nodemailer.createTransport({
     }
 });
 
-// OTP ယာယီသိမ်းဆည်းရန် Map
+// OTP Storage (Memory Map)
 const otpStore = new Map(); 
 
 // --- 🎯 AUTH ROUTES ---
@@ -66,7 +67,7 @@ app.post('/api/send-otp', async (req, res) => {
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     
-    // OTP ကို ၅ မိနစ်စာ သိမ်းဆည်းခြင်း
+    // OTP ကို ၅ မိနစ် (300,000 ms) သိမ်းဆည်းထားမည်
     otpStore.set(email, { 
         code: otp, 
         expiresAt: Date.now() + 300000 
@@ -80,13 +81,13 @@ app.post('/api/send-otp', async (req, res) => {
       subject: 'Your Verification Code - X Market',
       html: `
         <div style="font-family: sans-serif; padding: 20px; background-color: #f4f4f4;">
-            <div style="max-width: 500px; margin: auto; background: white; padding: 20px; border-radius: 10px; border-top: 4px solid #EAB308;">
-                <h2 style="color: #333; text-align: center;">Verification Code</h2>
-                <p style="color: #666; font-size: 16px;">Use the following code to complete your registration:</p>
-                <div style="background: #FFF9E6; padding: 15px; border-radius: 8px; text-align: center; margin: 20px 0;">
-                    <h1 style="color: #EAB308; letter-spacing: 8px; margin: 0; font-size: 32px;">${otp}</h1>
+            <div style="max-width: 500px; margin: auto; background: white; padding: 20px; border-radius: 10px; border-top: 5px solid #EAB308; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <h2 style="color: #333; text-align: center;">Identity Verification</h2>
+                <p style="color: #666; font-size: 16px; text-align: center;">Use the code below to complete your registration process.</p>
+                <div style="background: #FFF9E6; padding: 20px; border-radius: 8px; text-align: center; margin: 25px 0;">
+                    <h1 style="color: #EAB308; letter-spacing: 10px; margin: 0; font-size: 36px; font-weight: bold;">${otp}</h1>
                 </div>
-                <p style="font-size: 12px; color: #888; text-align: center;">This code will expire in 5 minutes.</p>
+                <p style="font-size: 13px; color: #888; text-align: center;">This verification code is valid for 5 minutes only.</p>
             </div>
         </div>
       `
@@ -155,7 +156,7 @@ app.post('/api/login', async (req, res) => {
 app.get('/api/health', (req, res) => {
     res.json({ 
         status: 'OK', 
-        message: 'Server is healthy and configured for xmarket-pro-2026',
+        message: 'Server is healthy and CORS configured for xmarket-pro-2026',
         timestamp: new Date().toISOString()
     });
 });
@@ -163,5 +164,5 @@ app.get('/api/health', (req, res) => {
 // Server Start
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`🌐 CORS Allowed for: https://xmarket-pro-2026.netlify.app`);
+    console.log(`🌐 Trusted Origin: https://xmarket-pro-2026.netlify.app`);
 });
