@@ -24,8 +24,6 @@ const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'crypto_x_secret_2026';
 
 // --- 🛡️ Professional CORS Configuration (Path Error Fixed) ---
-// ❌ သတိထားရန် - app.options('*', ...) ကို လုံးဝမသုံးပါနဲ့။ ဒါက path-to-regexp error တက်စေတယ်။
-// ✅ CORS middleware တစ်ခုတည်းနဲ့ အကုန်လုံး အလုပ်လုပ်ပါတယ်။
 
 const corsOptions = {
     origin: [
@@ -41,9 +39,6 @@ const corsOptions = {
 
 // ✅ CORS middleware - ဒီတစ်ခုတည်းနဲ့ လုံလောက်ပါတယ်
 app.use(cors(corsOptions));
-
-// ❌ အောက်ပါလိုင်းကို ဖြုတ်လိုက်ပါပြီ (error တက်စေတဲ့အတွက်)
-// app.options('*', cors(corsOptions));
 
 app.use(express.json({ limit: '10mb' })); 
 app.use(helmet({ crossOriginResourcePolicy: false }));
@@ -134,12 +129,14 @@ setInterval(() => {
     }
 }, 5 * 60 * 1000);
 
+// 🚀 CRITICAL FIX: Outlook အစား Mailtrap (Reliable Testing SMTP) ကို အသုံးပြုထားပါတယ်
 const transporter = nodemailer.createTransport({
-  service: 'hotmail', 
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS 
-  }
+    host: "sandbox.smtp.mailtrap.io",
+    port: 2525,
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS 
+    }
 });
 
 // --- AUTH ROUTES ---
@@ -514,14 +511,14 @@ app.listen(PORT, () => {
     console.log(`🚀 Professional Server running on port ${PORT}`);
     console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
     
-    // Email system check
+    // Email system check with Mailtrap configuration
     setTimeout(() => {
         transporter.verify((error, success) => {
             if (error) {
-                console.log("❌ Email Verification Error:", error.message);
-                console.log("⚠️ Please check EMAIL_USER and EMAIL_PASS in .env file");
+                console.log("❌ Mailtrap Verification Error:", error.message);
+                console.log("⚠️ Please check EMAIL_USER and EMAIL_PASS in your environment variables.");
             } else {
-                console.log("📧 Email System is ready to send codes (IPv4 Verified)");
+                console.log("📧 Mailtrap is ready! OTP testing mode active.");
             }
         });
     }, 3000);
