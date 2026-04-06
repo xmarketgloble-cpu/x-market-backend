@@ -1,5 +1,6 @@
 const express = require('express');
 const mongoose = require('mongoose');
+const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
@@ -22,31 +23,29 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'crypto_x_secret_2026';
 
-// 🚀 THE ULTIMATE CORS SLEDGEHAMMER (Manual Override)
-// သူများ package တွေ မသုံးတော့ဘဲ Browser တောင်းသမျှ ခွင့်ပြုချက်ကို ချက်ချင်းပေးမယ့်စနစ်
+// --- 🛡️ Professional CORS Configuration (Manual sledgehammer for reliability) ---
 app.use((req, res, next) => {
     const origin = req.headers.origin;
-    if (origin) {
-        res.setHeader('Access-Control-Allow-Origin', origin);
-    } else {
-        res.setHeader('Access-Control-Allow-Origin', '*');
-    }
-    
+    // Origin အားလုံးကို လက်ခံပေးထားပြီး Credentials ပါ ခွင့်ပြုထားပါတယ်
+    res.setHeader('Access-Control-Allow-Origin', origin || '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
 
-    // Browser က OPTIONS (Preflight) လှမ်းမေးရင် Rate Limit တွေဆီ မရောက်ခင် ချက်ချင်း 200 OK ပြန်ပေးမယ်!
+    // Preflight (OPTIONS) request တွေကို ချက်ချင်း 200 ပြန်ပေးဖို့ (CORS Fix)
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
     }
     next();
 });
 
+// Standard CORS configuration for extra layer
+app.use(cors({ origin: true, credentials: true }));
+
 app.use(express.json({ limit: '10mb' })); 
 app.use(morgan('dev'));
 
-// 🚦 Rate Limiter
+// 🚦 Rate Limiter - Spam မဖြစ်အောင် ကာကွယ်ထားပါတယ်
 const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, 
     max: 100, 
@@ -131,13 +130,17 @@ setInterval(() => {
     }
 }, 5 * 60 * 1000);
 
-// 🚀 CRITICAL FIX: Mailtrap Configuration
+// 🚀 CRITICAL FIX: Mailtrap Stable Configuration (Port 587 is more reliable on cloud)
 const transporter = nodemailer.createTransport({
     host: "sandbox.smtp.mailtrap.io",
-    port: 2525,
+    port: 587,
+    secure: false, // Port 587 uses STARTTLS
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS 
+    },
+    tls: {
+        rejectUnauthorized: false // Railway network ချိတ်ဆက်မှု ပိုမြန်စေရန်
     }
 });
 
@@ -181,43 +184,12 @@ app.post('/api/send-otp', async (req, res, next) => {
   }
 });
 
-// 🚨 Dual Route: Handles both /send-otp and /send-opt
+// 🚨 Dual Route: Handles both /send-otp and /send-opt (Redirecting for stability)
 app.post('/api/send-opt', async (req, res, next) => {
   console.log("🔄 Redirecting /send-opt to main logic");
-  try {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ message: 'Need Email' });
-    
-    const existingUser = await User.findOne({ email });
-    if (existingUser) return res.status(400).json({ message: 'Account Already exists' });
-
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    otpStore.set(email, { 
-        code: otp, 
-        expiresAt: Date.now() + 5 * 60 * 1000 
-    }); 
-
-    const mailOptions = {
-      from: `"X Market Security" <${process.env.EMAIL_USER}>`,
-      to: email,
-      subject: 'X Market - Verification Code',
-      html: `<div style="font-family: Arial, sans-serif; padding: 30px; background-color: #0B0E11; color: #ffffff; border-radius: 12px; max-width: 500px; margin: auto; border: 1px solid #2B3139;">
-          <h2 style="color: #EAB308; text-align: center;">X Market Registration</h2>
-          <p>Your verification code is:</p>
-          <div style="text-align: center; margin: 20px 0;">
-            <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; background: #1E2329; padding: 15px 25px; border-radius: 8px; color: #ffffff;">${otp}</span>
-          </div>
-          <p style="font-size: 12px; color: #666; text-align: center;">This code will expire in 5 minutes. Do not share it with anyone.</p>
-        </div>`
-    };
-
-    await transporter.sendMail(mailOptions);
-    console.log(`✅ OTP Successfully sent to: ${email} (via /send-opt)`);
-    res.json({ message: 'Verification code sent!' });
-  } catch (error) { 
-    console.error("🔥 OTP Send Error:", error);
-    next(error); 
-  }
+  // Main OTP logic ကို ပြန်ခေါ်ပေးထားပါတယ်
+  req.url = '/api/send-otp';
+  return app._router.handle(req, res, next);
 });
 
 app.post('/api/register', async (req, res, next) => {
@@ -508,7 +480,7 @@ app.use((err, req, res, next) => {
 });
 
 // --- 🚀 Server Start ---
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Professional Server running on port ${PORT}`);
     
     setTimeout(() => {
