@@ -13,20 +13,19 @@ dotenv.config();
 const User = require('./models/User'); 
 const Transaction = require('./models/Transaction'); 
 
-// index.js
+// ✅ ၁။ App အရင် ကြေညာရမည်
+const app = express();
 const PORT = process.env.PORT || 5000;
+const JWT_SECRET = process.env.JWT_SECRET || 'crypto_x_secret_2026';
 
-app.listen(PORT, '0.0.0.0', () => { // ✨ '0.0.0.0' ဆိုတာ ပါမှ Networking ပွင့်တာပါ
-    console.log(`🚀 Server running on port ${PORT}`);
-});
 // --- 🛡️ Professional Middlewares Setup ---
 
-// ✅ CORS Configuration: Netlify URL အသစ်ကို အသေအချာ ခွင့်ပြုထားသည်
+// ✅ ၂။ App ကြေညာပြီးမှ Middleware များ သုံးရမည်
 app.use(cors({
     origin: [
-        "https://xmarket-pro-2026.netlify.app", // ✨ Updated Netlify Domain
-        "http://localhost:5173",                // Local Development (Vite)
-        "http://localhost:3000"                 // Local Development (CRA)
+        "https://xmarket-pro-2026.netlify.app",
+        "http://localhost:5173",
+        "http://localhost:3000"
     ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -55,20 +54,16 @@ const transporter = nodemailer.createTransport({
     }
 });
 
-// OTP Storage (Memory Map)
 const otpStore = new Map(); 
 
 // --- 🎯 AUTH ROUTES ---
 
-// ၁။ OTP ပို့ခြင်း
 app.post('/api/send-otp', async (req, res) => {
   try {
     const { email } = req.body;
     if (!email) return res.status(400).json({ message: "Email is required" });
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    
-    // OTP ကို ၅ မိနစ် (300,000 ms) သိမ်းဆည်းထားမည်
     otpStore.set(email, { 
         code: otp, 
         expiresAt: Date.now() + 300000 
@@ -101,25 +96,18 @@ app.post('/api/send-otp', async (req, res) => {
   }
 });
 
-// ၂။ Register လုပ်ခြင်း
 app.post('/api/register', async (req, res) => {
   try {
     const { email, password, otp } = req.body;
-    
-    if (!email || !password || !otp) {
-        return res.status(400).json({ message: 'All fields are required' });
-    }
+    if (!email || !password || !otp) return res.status(400).json({ message: 'All fields are required' });
 
     const stored = otpStore.get(email);
-    
     if (!stored || stored.code !== otp || stored.expiresAt < Date.now()) {
         return res.status(400).json({ message: 'Invalid or Expired OTP' });
     }
 
     const existingUser = await User.findOne({ email });
-    if (existingUser) {
-        return res.status(400).json({ message: 'Email already registered' });
-    }
+    if (existingUser) return res.status(400).json({ message: 'Email already registered' });
 
     const hashedPassword = await bcrypt.hash(password, 12);
     const newUser = new User({ email, password: hashedPassword });
@@ -132,37 +120,27 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
-// ၃။ Login ဝင်ခြင်း
 app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
-    
     if (!user || !(await bcrypt.compare(password, user.password))) {
         return res.status(400).json({ message: 'Invalid Credentials' });
     }
-
     const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '1d' });
-    
     const userObj = user.toObject();
     delete userObj.password;
-
     res.json({ token, user: userObj });
   } catch (error) { 
     res.status(500).json({ message: 'Login Failed', error: error.message }); 
   }
 });
 
-// Health Check API
 app.get('/api/health', (req, res) => {
-    res.json({ 
-        status: 'OK', 
-        message: 'Server is healthy and CORS configured for xmarket-pro-2026',
-        timestamp: new Date().toISOString()
-    });
+    res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-// Server Start
+// ✅ ၃။ Listen ကို အမြဲတမ်း အောက်ဆုံးမှာ ထားရမည်
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`🌐 Trusted Origin: https://xmarket-pro-2026.netlify.app`);
