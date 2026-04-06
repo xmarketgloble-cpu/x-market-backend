@@ -1,9 +1,27 @@
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
-  email: { type: String, required: true, unique: true },
-  password: { type: String, required: true },
-  balance: { type: Number, default: 0 },
+  // --- 🔐 Basic Auth Info ---
+  email: { 
+    type: String, 
+    required: [true, 'Email is required'], 
+    unique: true,
+    lowercase: true,
+    trim: true,
+    match: [/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/, 'Please fill a valid email address']
+  },
+  password: { 
+    type: String, 
+    required: [true, 'Password is required'],
+    minlength: [6, 'Password must be at least 6 characters']
+  },
+  
+  // --- 💰 Financial Wallet ---
+  balance: { 
+    type: Number, 
+    default: 0,
+    min: [0, 'Balance cannot be negative'] 
+  },
   
   // 📸 Profile Photo
   profilePic: { type: String, default: "" }, 
@@ -11,7 +29,10 @@ const userSchema = new mongoose.Schema({
   // Verification Status: 'Unverified', 'Pending', 'Verified'
   isVerified: { 
     type: String, 
-    enum: ['Unverified', 'Pending', 'Verified'], 
+    enum: {
+        values: ['Unverified', 'Pending', 'Verified'],
+        message: '{VALUE} is not a valid status'
+    },
     default: 'Unverified' 
   },
   
@@ -23,7 +44,11 @@ const userSchema = new mongoose.Schema({
     // --- 🆕 ထပ်တိုးထားသော ကိုယ်ရေးအချက်အလက်များ (New KYC Fields) ---
     dob: { type: String, default: "" },           // မွေးသက္ကရာဇ်
     phoneNumber: { type: String, default: "" },   // ဖုန်းနံပါတ်
-    gender: { type: String, default: "" },        // ကျား/မ
+    gender: { 
+        type: String, 
+        enum: ['', 'Male', 'Female', 'Other'], 
+        default: "" 
+    },        // ကျား/မ
     address: { type: String, default: "" },       // နေရပ်လိပ်စာ
     // --------------------------------------------------------
 
@@ -39,8 +64,8 @@ const userSchema = new mongoose.Schema({
   
   // Asset Holdings & Portfolio
   holdings: [{
-    coinId: String,
-    amount: { type: Number, default: 0 }
+    coinId: { type: String, required: true },
+    amount: { type: Number, default: 0, min: 0 }
   }],
   
   watchlist: [{ type: String }],
@@ -52,7 +77,22 @@ const userSchema = new mongoose.Schema({
     default: 'user' 
   },
 
-  createdAt: { type: Date, default: Date.now }
+  // --- 🕒 Timestamp Metadata ---
+  lastLogin: { type: Date },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+}, {
+    // Automates updatedAt field and cleanup
+    timestamps: true 
+});
+
+// --- 🛡️ Security: Password Hide ---
+// JSON အဖြစ်ထုတ်တဲ့အခါ password ကို အမြဲ ဖျောက်ထားပေးမယ်
+userSchema.set('toJSON', {
+    transform: function(doc, ret, options) {
+        delete ret.password;
+        return ret;
+    }
 });
 
 module.exports = mongoose.model('User', userSchema);
